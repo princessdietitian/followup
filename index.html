@@ -140,6 +140,11 @@ const FORM_STAGE = _STAGE_MAP[_stageParam] || _stageParam;
     <p class="cover-name" id="coverName">姓名</p>
   </div>
 
+  <!-- 計劃流程總覽 -->
+  <div class="report-section">
+    <img id="overviewImg" src="" alt="計劃流程總覽" style="width:100%;border-radius:16px;display:block">
+  </div>
+
   <!-- 生理機能：體重 + 症狀進步 -->
   <div class="report-section">
     <div class="sec-header">
@@ -166,24 +171,19 @@ const FORM_STAGE = _STAGE_MAP[_stageParam] || _stageParam;
     <div id="knowledgeSection"></div>
   </div>
 
-  <!-- 份量評估表 -->
-  <div class="report-section">
-    <div class="sec-header">
-      <div class="sec-title">飲食份量評估</div>
-      <div class="sec-divider"></div>
-    </div>
-    <div class="food-image-wrap">
-      <img id="foodImg" src="" alt="份量評估參考圖" style="width:100%;border-radius:14px;display:block">
-      <div class="food-image-caption" id="foodImgCaption"></div>
-    </div>
-    <table class="quant-table" id="quantitySection"></table>
-  </div>
-
-  <!-- 題目正確答案（供諮詢時檢討） -->
+  <!-- 題目正確答案（份量評估表也併入這裡，供諮詢時檢討） -->
   <div class="report-section">
     <div class="sec-header">
       <div class="sec-title">題目解析</div>
       <div class="sec-divider"></div>
+    </div>
+    <div class="content-card">
+      <h3>飲食份量評估</h3>
+      <div class="food-image-wrap">
+        <img id="foodImg" src="" alt="份量評估參考圖" style="width:100%;border-radius:14px;display:block">
+        <div class="food-image-caption" id="foodImgCaption"></div>
+      </div>
+      <table class="quant-table" id="quantitySection"></table>
     </div>
     <div id="quizSection"></div>
   </div>
@@ -394,7 +394,8 @@ function renderSingleQuiz(item, current) {
       if (isCorrect && isSelected) { cls = 'opt-correct-selected'; icon = '✓'; }
       else if (isCorrect && !isSelected) { cls = 'opt-correct-missed'; icon = '○'; }
       else if (!isCorrect && isSelected) { cls = 'opt-wrong-selected'; icon = '✗'; }
-      return `<div class="quiz-opt ${cls}"><span class="quiz-icon">${icon}</span>${opt}</div>`;
+      const note = item.optionNotes && item.optionNotes[opt] ? `<span style="color:#a09080;font-size:12px;margin-left:6px">（${item.optionNotes[opt]}）</span>` : '';
+      return `<div class="quiz-opt ${cls}"><span class="quiz-icon">${icon}</span>${opt}${note}</div>`;
     }).join('')}
   </div>`;
 }
@@ -425,6 +426,7 @@ const FU1_QUIZ_REVIEW = [
     type: 'single',
     question: '以下何種選項的碳水量最高？',
     options: ['半片土司','10顆葡萄','1碗白飯','1碗小乾麵'],
+    optionNotes: { '半片土司':'2份主食', '10顆葡萄':'1份水果', '1碗白飯':'4份主食', '1碗小乾麵':'2份主食' },
     correct: '1碗白飯',
     answerKeys: ['碳水量知識','碳水量知識題']
   }
@@ -434,6 +436,7 @@ const FU1_QUIZ_REVIEW = [
 const STAGE_CONFIG = {
   '1st follow up': {
     label: '第一次回診報告',
+    overviewImage: 'overview-fu1.png',
     symptomDims: ['sleep','diet'],
     knowledgeColumns: [
       { title: '正念飲食', items: [
@@ -545,6 +548,7 @@ function renderReport(data, stageKey) {
 
   document.getElementById('coverTitle').textContent = cfg.label;
   document.getElementById('coverName').textContent = pickField(current, ['你的名字']) || pickField(baseline, ['你的名字']) || '';
+  document.getElementById('overviewImg').src = cfg.overviewImage || '';
 
   document.getElementById('weightSection').innerHTML = renderWeightCompare(baseline, current);
   document.getElementById('symptomSection').innerHTML = renderSymptomSection(cfg.symptomDims, baseline, currentSymptoms);

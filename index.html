@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>回診報告 | 公主營養師</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans TC',sans-serif;background:#F5F0E8;color:#3a3228;min-height:100vh}
+
+/* ── LOGIN / WAITING（沿用初診報告同一套） ── */
+#loginPage{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:40px 20px;text-align:center}
+.login-logo{font-size:12px;color:#7a6e5f;letter-spacing:3px;margin-bottom:12px}
+.login-title{font-size:22px;font-weight:700;color:#4a5a2a;margin-bottom:8px}
+.login-sub{font-size:14px;color:#7a6e5f;margin-bottom:32px;line-height:1.6}
+.login-input{width:100%;max-width:320px;padding:14px 16px;border:1.5px solid #c8bf9a;border-radius:12px;font-size:16px;font-family:inherit;outline:none;background:white;margin-bottom:12px}
+.login-input:focus{border-color:#4a5a2a}
+.login-btn{width:100%;max-width:320px;padding:14px;background:#4a5a2a;color:white;border:none;border-radius:99px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit}
+.login-btn:hover{background:#3a4a1a}
+.login-error{font-size:13px;color:#8a3030;margin-top:10px;display:none}
+
+/* ── REPORT ── */
+#reportPage{display:none}
+.report-nav{background:#4a5a2a;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:100}
+.report-nav-title{font-size:13px;color:#c8d8a0;letter-spacing:1px}
+.print-btn{background:white;color:#4a5a2a;border:none;padding:8px 20px;border-radius:99px;font-size:13px;font-weight:600;cursor:pointer}
+.back-btn{background:transparent;color:#c8d8a0;border:1px solid rgba(255,255,255,.3);padding:8px 16px;border-radius:99px;font-size:13px;cursor:pointer}
+
+.report-section{max-width:900px;margin:0 auto;padding:48px 32px;border-bottom:2px dashed #d0c8b0}
+.report-section:last-child{border-bottom:none}
+.cover{background:linear-gradient(135deg,#4a5a2a 0%,#6a7a3a 100%);min-height:320px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:60px 32px}
+.cover-title{font-size:32px;font-weight:700;color:white;margin-bottom:8px}
+.cover-name{font-size:20px;font-weight:500;color:white;margin-top:16px}
+
+.sec-header{margin-bottom:32px}
+.sec-title{font-size:26px;font-weight:700;color:#4a5a2a;margin-bottom:4px}
+.sec-divider{height:2px;background:linear-gradient(to right,#4a5a2a,transparent);margin-top:12px}
+
+.content-card{background:white;border-radius:16px;padding:24px;margin-bottom:16px;border:1px solid #e0d8c0}
+.content-card h3{font-size:16px;font-weight:700;color:#4a5a2a;margin-bottom:12px}
+.two-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+
+/* ── 體重對比 ── */
+.weight-compare{display:flex;align-items:center;justify-content:center;gap:24px;margin:16px 0}
+.weight-box{text-align:center}
+.weight-box .label{font-size:12px;color:#7a6e5f;margin-bottom:4px}
+.weight-box .value{font-size:28px;font-weight:700;color:#4a5a2a}
+.weight-arrow{font-size:24px;color:#c8a84a}
+.weight-delta{display:inline-block;margin-top:8px;padding:6px 16px;border-radius:99px;font-size:14px;font-weight:600}
+.weight-delta.down{background:#eef2e0;color:#4a5a2a}
+.weight-delta.up{background:#fce8e8;color:#8a3030}
+.weight-delta.same{background:#f0ece0;color:#7a6e5f}
+
+/* ── 症狀進步標記 ── */
+.progress-item{display:flex;align-items:center;justify-content:space-between;background:#F5F0E8;border:1px solid #e0d8c0;border-radius:12px;padding:12px 16px;margin-bottom:8px}
+.progress-item .name{font-size:14px;font-weight:500;color:#3a3228}
+.progress-item .scores{display:flex;align-items:center;gap:8px;font-size:13px}
+.score-badge{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;font-weight:700;font-size:12px}
+.score-badge.before{background:#fce8e8;color:#8a3030}
+.score-badge.after{background:#eef2e0;color:#4a5a2a}
+
+/* ── 知識題checklist ── */
+.check-list{display:flex;flex-direction:column;gap:8px}
+.check-item{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:#3a3228;line-height:1.5}
+.check-icon{flex-shrink:0;width:18px;height:18px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;margin-top:1px}
+.check-icon.pass{background:#4a5a2a;color:white}
+.check-icon.fail{background:white;border:1.5px solid #d0c8b0}
+
+/* ── 份量評估表 ── */
+.food-image-wrap{border:1.5px dashed #d0c8b0;border-radius:12px;padding:16px;margin-bottom:20px;background:white}
+.food-image-caption{font-size:12px;color:#a09080;margin-top:8px;line-height:1.5}
+.quant-table{width:100%;border-collapse:collapse;margin-top:16px;background:white;border-radius:12px;overflow:hidden}
+.quant-table th,.quant-table td{padding:10px 12px;text-align:center;font-size:13px;border-bottom:1px solid #e0d8c0}
+.quant-table th{color:#7a6e5f;font-weight:600;background:#eef2e0}
+.quant-table td.pass{color:#4a5a2a;font-weight:700}
+.quant-table td.fail{color:#8a3030;font-weight:700}
+
+/* ── 最後quiz答案頁 ── */
+.quiz-block{background:white;border:1px solid #e0d8c0;border-radius:12px;padding:18px;margin-bottom:16px}
+.quiz-q{font-size:14px;font-weight:600;color:#3a3228;margin-bottom:10px}
+.quiz-opt{display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 10px;border-radius:8px;margin-bottom:4px}
+.opt-correct-selected{background:#eef2e0;color:#4a5a2a;font-weight:600}
+.opt-correct-missed{background:#fef3e2;color:#7a5a10}
+.opt-wrong-selected{background:#fce8e8;color:#8a3030}
+.opt-neutral{color:#a09080}
+.quiz-icon{width:16px;flex-shrink:0;text-align:center}
+
+/* ── 營養師補充 ── */
+.note-box{background:white;border:1.5px dashed #c8bf9a;border-radius:12px;padding:18px;font-size:14px;color:#5a5040;line-height:1.8;white-space:pre-wrap}
+
+@media print{
+  .report-nav,.back-btn,.print-btn{display:none!important}
+  .report-section{page-break-after:always;border:none;padding:32px}
+  body{background:white}
+}
+@page{size:A4 landscape;margin:10mm}
+</style>
+</head>
+<body>
+
+<script>
+// ════════════════════════════════
+// ⚙️ 設定區
+// ════════════════════════════════
+const ENDPOINT_REPORT = 'https://hook.eu1.make.com/sarp3tvd164xme1tow88btu2wjjm2a8t' // 跟初診報告共用同一支 webhook，Make 那邊用 Router 分流
+
+// 從網址參數判斷這是第幾次回診報告，例如 report.html?stage=1
+const _params = new URLSearchParams(window.location.search);
+const _stageParam = _params.get('stage') || '1';
+const _STAGE_MAP = {'1':'1st follow up','2':'2nd follow up','3':'3rd follow up'};
+const FORM_STAGE = _STAGE_MAP[_stageParam] || _stageParam;
+</script>
+
+<!-- LOGIN -->
+<div id="loginPage">
+  <p class="login-logo">公主營養師</p>
+  <h1 class="login-title" id="loginTitle">查看我的回診報告</h1>
+  <p class="login-sub">請輸入填寫問卷時的手機號碼<br>即可查看你的回診報告</p>
+  <input class="login-input" type="tel" id="phoneInput" placeholder="09xxxxxxxx" maxlength="10">
+  <button class="login-btn" onclick="login()">查看報告 →</button>
+  <p class="login-error" id="loginError"></p>
+</div>
+
+<!-- REPORT -->
+<div id="reportPage">
+  <div class="report-nav">
+    <button class="back-btn" onclick="logout()">← 登出</button>
+    <span class="report-nav-title">公主營養師</span>
+    <button class="print-btn" onclick="window.print()">下載 PDF</button>
+  </div>
+
+  <!-- 封面 -->
+  <div class="cover report-section">
+    <p class="cover-title" id="coverTitle">回診報告</p>
+    <p class="cover-name" id="coverName">姓名</p>
+  </div>
+
+  <!-- 生理機能：體重 + 症狀進步 -->
+  <div class="report-section">
+    <div class="sec-header">
+      <div class="sec-title">生理機能</div>
+      <div class="sec-divider"></div>
+    </div>
+    <div class="content-card">
+      <h3>體重變化</h3>
+      <div id="weightSection"></div>
+    </div>
+    <div id="symptomSection"></div>
+    <div class="note-box" id="nutritionistNote" style="display:none">
+      <strong>營養師補充：</strong>
+      <div class="note-text"></div>
+    </div>
+  </div>
+
+  <!-- 基礎營養學知識 -->
+  <div class="report-section">
+    <div class="sec-header">
+      <div class="sec-title">基礎營養學知識</div>
+      <div class="sec-divider"></div>
+    </div>
+    <div id="knowledgeSection"></div>
+  </div>
+
+  <!-- 份量評估表 -->
+  <div class="report-section">
+    <div class="sec-header">
+      <div class="sec-title">飲食份量評估</div>
+      <div class="sec-divider"></div>
+    </div>
+    <div class="food-image-wrap">
+      <img id="foodImg" src="" alt="份量評估參考圖" style="width:100%;border-radius:14px;display:block">
+      <div class="food-image-caption" id="foodImgCaption"></div>
+    </div>
+    <table class="quant-table" id="quantitySection"></table>
+  </div>
+
+  <!-- 題目正確答案（供諮詢時檢討） -->
+  <div class="report-section">
+    <div class="sec-header">
+      <div class="sec-title">題目解析</div>
+      <div class="sec-divider"></div>
+    </div>
+    <div id="quizSection"></div>
+  </div>
+</div>
+
+<script>
+// ══ 工具：從物件裡依序嘗試多個可能的欄位名稱，第一個有值的就回傳 ══
+// 用途：因為 Airtable 欄位名稱中途改過幾次（例如 六大類食物認知→六大類食物），
+// 用這個函式可以同時相容新舊名稱，不會因為改名就抓空值。
+function pickField(obj, keys) {
+  if (!obj) return undefined;
+  for (const k of keys) {
+    if (obj[k] !== undefined) return obj[k];
+  }
+  return undefined;
+}
+
+// ══ 把 symptoms 陣列攤平成 {題目: 結果} 物件 ══
+function symptomsArrayToFlat(symptomsObj) {
+  const flat = {};
+  const arr = (symptomsObj && symptomsObj.array) || [];
+  arr.forEach(row => { flat[row['題目']] = Number(row['結果']); });
+  return flat;
+}
+
+// ══ 症狀分類定義（之後 FU2 會用到 digest/skin，FU3 會用到 female，先預留） ══
+const DIMS = {
+  diet: {
+    label: '飲食與體態',
+    fields: ['飲｜體重過重','飲｜體重過輕','飲｜暴食/吃過多**','飲｜渴望甜食*','飲｜渴望零食*','飲｜依賴咖啡因**','飲｜微波食品/加工品**'],
+    labels: ['體重過重','體重過輕','暴食/吃過多','渴望甜食','渴望零食','依賴咖啡因','微波食品/加工品']
+  },
+  sleep: {
+    label: '睡眠與精神',
+    fields: ['睡｜精神亢奮','睡｜疲勞/睡醒還是累**','睡｜需要午睡','睡｜難入眠','睡｜半夜醒來(睡眠中斷)','睡｜打呼/睡眠呼吸中止','睡｜心情低落*','睡｜覺得被工作消耗*','睡｜不耐煩/愛生氣**'],
+    labels: ['精神亢奮','疲勞/睡醒還累','需要午睡','難入眠','半夜醒來','打呼/呼吸中止','心情低落','被工作消耗','不耐煩/愛生氣']
+  }
+  // digest / skin / female 留給 FU2、FU3 之後補上
+};
+
+// ══ 症狀進步標記邏輯 ══
+// 規則：baseline=4 且這次降到 ≤2 的優先標記；
+// 不到2項時，補上「這次分數是0或1」的項目，湊到至少2項
+function getProgressHighlights(baseline, currentSymptoms, dim) {
+  const d = DIMS[dim];
+  let highlights = [];
+  d.fields.forEach((f, i) => {
+    const b = baseline[f] ?? 0;
+    const c = currentSymptoms[f] ?? 0;
+    if (b === 4 && c <= 2) highlights.push({ label: d.labels[i], b, c });
+  });
+  if (highlights.length < 2) {
+    d.fields.forEach((f, i) => {
+      if (highlights.find(h => h.label === d.labels[i])) return;
+      const c = currentSymptoms[f] ?? 0;
+      if (c === 0 || c === 1) highlights.push({ label: d.labels[i], b: baseline[f] ?? 0, c });
+    });
+  }
+  return highlights;
+}
+
+function renderSymptomSection(dims, baseline, currentSymptoms) {
+  return dims.map(dim => {
+    const d = DIMS[dim];
+    const highlights = getProgressHighlights(baseline, currentSymptoms, dim);
+    if (highlights.length === 0) {
+      return `<div class="content-card"><h3>${d.label}</h3><p style="font-size:13px;color:#7a6e5f">本次無特別標記的項目</p></div>`;
+    }
+    return `<div class="content-card">
+      <h3>${d.label}</h3>
+      ${highlights.map(h => `
+        <div class="progress-item">
+          <span class="name">${h.label}</span>
+          <span class="scores"><span class="score-badge before">${h.b}</span> → <span class="score-badge after">${h.c}</span></span>
+        </div>`).join('')}
+    </div>`;
+  }).join('');
+}
+
+// ══ 體重對比 ══
+function renderWeightCompare(baseline, current) {
+  const b = pickField(baseline, ['體重']);
+  const c = pickField(current, ['體重']);
+  if (b == null || c == null) return '<p style="font-size:13px;color:#7a6e5f">體重資料不足</p>';
+  const delta = c - b;
+  const cls = delta < 0 ? 'down' : delta > 0 ? 'up' : 'same';
+  const text = delta === 0 ? '持平' : `${delta > 0 ? '+' : ''}${delta.toFixed(1)} kg`;
+  return `<div class="weight-compare">
+      <div class="weight-box"><div class="label">初診</div><div class="value">${b} kg</div></div>
+      <div class="weight-arrow">→</div>
+      <div class="weight-box"><div class="label">這次</div><div class="value">${c} kg</div></div>
+    </div>
+    <div style="text-align:center"><span class="weight-delta ${cls}">${text}</span></div>`;
+}
+
+// ══ 知識題checklist ══
+function renderKnowledgeChecklist(columns, current, baseline, profile) {
+  return `<div class="two-col">
+    ${columns.map(col => `
+      <div class="content-card">
+        <h3>${col.title}</h3>
+        <div class="check-list">
+          ${col.items.map(item => {
+            const pass = !!item.check(current, baseline, profile);
+            return `<div class="check-item">
+              <span class="check-icon ${pass ? 'pass' : 'fail'}">${pass ? '✓' : ''}</span>
+              <span>${item.label}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`).join('')}
+  </div>`;
+}
+
+// ══ 份量評估表 ══
+function renderQuantityTable(rows, current) {
+  return `<tr><th></th><th>你的答案</th><th>正確解答</th></tr>
+    ${rows.map(r => {
+      const val = pickField(current, r.key);
+      const pass = val !== undefined && Math.abs(val - r.correct) <= 0.5;
+      return `<tr>
+        <td style="text-align:left;font-weight:600">${r.label}</td>
+        <td class="${pass ? 'pass' : 'fail'}">${val ?? '—'}</td>
+        <td>${r.correct}</td>
+      </tr>`;
+    }).join('')}`;
+}
+
+// ══ 最後quiz答案頁 ══
+function renderMultiQuiz(item, current) {
+  const userAns = pickField(current, item.answerKeys) || [];
+  return `<div class="quiz-block">
+    <div class="quiz-q">${item.question}</div>
+    ${item.options.map(opt => {
+      const isCorrect = item.correct.includes(opt);
+      const isSelected = userAns.includes(opt);
+      let cls = 'opt-neutral', icon = '';
+      if (isCorrect && isSelected) { cls = 'opt-correct-selected'; icon = '✓'; }
+      else if (isCorrect && !isSelected) { cls = 'opt-correct-missed'; icon = '○'; }
+      else if (!isCorrect && isSelected) { cls = 'opt-wrong-selected'; icon = '✗'; }
+      return `<div class="quiz-opt ${cls}"><span class="quiz-icon">${icon}</span>${opt}</div>`;
+    }).join('')}
+  </div>`;
+}
+
+function renderRankQuiz(item, current) {
+  const userOrder = pickField(current, item.answerKeys) || [];
+  return `<div class="quiz-block">
+    <div class="quiz-q">${item.question}</div>
+    <div class="two-col" style="grid-template-columns:1fr 1fr">
+      <div><strong>你的排序</strong>${userOrder.map((o, i) => `<div style="margin-top:4px">${i + 1}. ${o}</div>`).join('')}</div>
+      <div><strong>正確排序</strong>${item.correctOrder.map((o, i) => {
+        const match = userOrder[i] === o;
+        return `<div style="margin-top:4px;color:${match ? '#4a5a2a' : '#8a3030'}">${i + 1}. ${o}</div>`;
+      }).join('')}</div>
+    </div>
+  </div>`;
+}
+
+function renderSingleQuiz(item, current) {
+  const userAns = pickField(current, item.answerKeys);
+  return `<div class="quiz-block">
+    <div class="quiz-q">${item.question}</div>
+    ${item.options.map(opt => {
+      const isCorrect = opt === item.correct;
+      const isSelected = opt === userAns;
+      let cls = 'opt-neutral', icon = '';
+      if (isCorrect && isSelected) { cls = 'opt-correct-selected'; icon = '✓'; }
+      else if (isCorrect && !isSelected) { cls = 'opt-correct-missed'; icon = '○'; }
+      else if (!isCorrect && isSelected) { cls = 'opt-wrong-selected'; icon = '✗'; }
+      return `<div class="quiz-opt ${cls}"><span class="quiz-icon">${icon}</span>${opt}</div>`;
+    }).join('')}
+  </div>`;
+}
+
+// ══ FU1 最後quiz定義 ══
+const FU1_QUIZ_REVIEW = [
+  {
+    type: 'multi',
+    question: '下列哪些屬於『六大類』食物呢？',
+    options: ['蛋白質','纖維','水果','主食/全穀雜糧','鐵','油脂','碳水化合物','豆魚蛋肉'],
+    correct: ['主食/全穀雜糧','豆魚蛋肉','水果','油脂'],
+    answerKeys: ['六大類食物','六大類食物認知']
+  },
+  {
+    type: 'rank',
+    question: '請將以下食物組合，依「血糖穩定→血糖較易波動」排列',
+    correctOrder: ['A肝連湯＋燙青菜＋滷豆腐','C肝連湯＋燙青菜＋1顆奇異果','D超商沙拉＋地瓜1顆','B大碗乾麵'],
+    answerKeys: ['食物組合排序','排序']
+  },
+  {
+    type: 'multi',
+    question: '當血糖較穩定時，下列哪些身體感受比較常出現？',
+    options: ['情緒起伏較小','專注力較能維持','心情較平穩','下午要吃點心/喝飲料','需要睡午覺才能撐到下班'],
+    correct: ['情緒起伏較小','專注力較能維持','心情較平穩'],
+    answerKeys: ['血糖穩定時的身體感受','血糖身體感受']
+  },
+  {
+    type: 'single',
+    question: '以下何種選項的碳水量最高？',
+    options: ['半片土司','10顆葡萄','1碗白飯','1碗小乾麵'],
+    correct: '1碗白飯',
+    answerKeys: ['碳水量知識','碳水量知識題']
+  }
+];
+
+// ══ 每次回診的專屬設定 ══
+const STAGE_CONFIG = {
+  '1st follow up': {
+    label: '第一次回診報告',
+    symptomDims: ['sleep','diet'],
+    knowledgeColumns: [
+      { title: '正念飲食', items: [
+        { label: '有意識的咀嚼食物', check: c => (pickField(c,['用餐習慣'])||[]).includes('我會有意識地咀嚼食物') },
+        { label: '用餐20分鐘以上', check: c => (pickField(c,['用餐習慣'])||[]).includes('我晚餐時間可以用餐 20 分鐘以上') },
+        { label: '每日飲水2000mL', check: c => (pickField(c,['用餐習慣'])||[]).includes('我每天飲水超過 2000 mL') },
+        { label: '我能掌控自己的食慾', check: c => (pickField(c,['用餐習慣'])||[]).includes('我不會一直想著下一餐要吃什麼') },
+        // ⚠️ 「自己準備餐食」在FU1問卷裡找不到對應題目，目前先當成跟纖維/好油脂一樣的營養師手動欄位處理，
+        // Airtable 還沒有這個欄位，要先新增才會生效，現在會一律顯示未勾選
+        { label: '自己準備餐食', check: (c,b,p) => !!pickField(p,['自己準備餐食']) }
+      ]},
+      { title: '食物份量', items: [
+        { label: '知道什麼是六大類', check: c => {
+            const sel = pickField(c, ['六大類食物','六大類食物認知']) || [];
+            return ['主食/全穀雜糧','豆魚蛋肉','水果','油脂'].every(x => sel.includes(x));
+          } },
+        { label: '能估算油脂份量', check: c => Math.abs((pickField(c,['油脂份數']) ?? -99) - 3) <= 0.5 },
+        { label: '能估算肉類/魚份量', check: c => Math.abs((pickField(c,['肉類份數']) ?? -99) - 3.5) <= 0.5 },
+        { label: '能估算蔬菜份量', check: c => Math.abs((pickField(c,['蔬菜份數']) ?? -99) - 0.5) <= 0.5 },
+        { label: '能估算主食份量', check: c => Math.abs((pickField(c,['主食份數']) ?? -99) - 4) <= 0.5 }
+      ]},
+      { title: '血糖穩定', items: [
+        { label: '理解血糖壓力之關聯', check: c => {
+            const sel = pickField(c, ['血糖穩定時的身體感受','血糖身體感受']) || [];
+            return ['情緒起伏較小','專注力較能維持','心情較平穩'].every(x => sel.includes(x));
+          } },
+        { label: '固定攝取纖維', check: (c,b,p) => !!pickField(p, ['固定攝取纖維']) },
+        { label: '固定攝取好油脂', check: (c,b,p) => !!pickField(p, ['固定攝取好油脂']) },
+        { label: '理解油脂的重要性', check: c => {
+            const order = pickField(c, ['食物組合排序','排序']) || [];
+            const correctOrder = ['A肝連湯＋燙青菜＋滷豆腐','C肝連湯＋燙青菜＋1顆奇異果','D超商沙拉＋地瓜1顆','B大碗乾麵'];
+            return JSON.stringify(order) === JSON.stringify(correctOrder);
+          } },
+        { label: '理解水果優於主食', check: c => pickField(c, ['碳水量知識','碳水量知識題']) === '1碗白飯' }
+      ]}
+    ],
+    quantityTable: [
+      { label: '蔬菜', key: ['蔬菜份數'], correct: 0.5 },
+      { label: '肉類', key: ['肉類份數'], correct: 3.5 },
+      { label: '油脂', key: ['油脂份數'], correct: 3 },
+      { label: '主食', key: ['主食份數'], correct: 4 }
+    ],
+    foodImage: 'bento.png',
+    foodImageCaption: '配菜包含：豆腐蘿蔔煮、木耳炒小松、悶煮金針菇、香腸兩片（圖片來源：鬍鬚張便當店）',
+    quizReview: FU1_QUIZ_REVIEW
+  },
+  '2nd follow up': null, // 待之後補上
+  '3rd follow up': null  // 待之後補上
+};
+
+// ══ 登入 ══
+async function login() {
+  const phone = document.getElementById('phoneInput').value.trim();
+  if (!phone) { showError('請輸入手機號碼'); return; }
+  const btn = document.querySelector('.login-btn');
+  btn.textContent = '查詢中…'; btn.disabled = true;
+  try {
+    const res = await fetch(ENDPOINT_REPORT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-make-apikey': 'princess-initial' },
+      body: JSON.stringify({ phone, '填表階段': FORM_STAGE })
+    });
+    const text = await res.text();
+    const data = JSON.parse(text);
+    if (!data || !data.current || Object.keys(data.current).length === 0) {
+      showError('查無這次回診的資料，請確認手機號碼或聯繫營養師');
+      btn.textContent = '查看報告 →'; btn.disabled = false;
+      return;
+    }
+    renderReport(data, FORM_STAGE);
+  } catch (e) {
+    console.log('錯誤:', e);
+    showError('系統錯誤，請稍後再試');
+    btn.textContent = '查看報告 →'; btn.disabled = false;
+  }
+}
+function showError(msg) {
+  const el = document.getElementById('loginError');
+  el.textContent = msg; el.style.display = 'block';
+}
+function logout() {
+  document.getElementById('reportPage').style.display = 'none';
+  document.getElementById('loginPage').style.display = 'flex';
+  document.getElementById('phoneInput').value = '';
+  document.getElementById('loginError').style.display = 'none';
+}
+
+// ══ 渲染報告 ══
+function renderReport(data, stageKey) {
+  const cfg = STAGE_CONFIG[stageKey];
+  const baseline = data.baseline || {};
+  const current = data.current || {};
+  const profile = data.profile || {};
+  const currentSymptoms = symptomsArrayToFlat(data.symptoms);
+
+  document.getElementById('loginPage').style.display = 'none';
+  document.getElementById('reportPage').style.display = 'block';
+
+  document.getElementById('coverTitle').textContent = cfg.label;
+  document.getElementById('coverName').textContent = pickField(current, ['你的名字']) || pickField(baseline, ['你的名字']) || '';
+
+  document.getElementById('weightSection').innerHTML = renderWeightCompare(baseline, current);
+  document.getElementById('symptomSection').innerHTML = renderSymptomSection(cfg.symptomDims, baseline, currentSymptoms);
+  document.getElementById('knowledgeSection').innerHTML = renderKnowledgeChecklist(cfg.knowledgeColumns, current, baseline, profile);
+  document.getElementById('quantitySection').innerHTML = renderQuantityTable(cfg.quantityTable, current);
+  document.getElementById('foodImg').src = cfg.foodImage;
+  document.getElementById('foodImgCaption').textContent = cfg.foodImageCaption;
+
+  document.getElementById('quizSection').innerHTML = cfg.quizReview.map(item => {
+    if (item.type === 'multi') return renderMultiQuiz(item, current);
+    if (item.type === 'rank') return renderRankQuiz(item, current);
+    if (item.type === 'single') return renderSingleQuiz(item, current);
+    return '';
+  }).join('');
+
+  const note = pickField(profile, ['第一次營養師補充']);
+  const noteBox = document.getElementById('nutritionistNote');
+  if (note) {
+    noteBox.style.display = 'block';
+    noteBox.querySelector('.note-text').textContent = note;
+  } else {
+    noteBox.style.display = 'none';
+  }
+
+  window.scrollTo(0, 0);
+}
+
+// ══ 啟動檢查：這次回診是否已經建置完成 ══
+if (!STAGE_CONFIG[FORM_STAGE]) {
+  document.body.innerHTML = '<p style="text-align:center;padding:80px 20px;color:#7a6e5f;font-size:15px">這次回診的報告頁面尚未建置完成，請稍候，或聯繫營養師。</p>';
+}
+</script>
+</body>
+</html>

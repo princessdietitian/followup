@@ -18,6 +18,10 @@ body{font-family:'Noto Sans TC',sans-serif;background:#F5F0E8;color:#3a3228;min-
 .login-btn{width:100%;max-width:320px;padding:14px;background:#4a5a2a;color:white;border:none;border-radius:99px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit}
 .login-btn:hover{background:#3a4a1a}
 .login-error{font-size:13px;color:#8a3030;margin-top:10px;display:none}
+.stage-select{display:flex;flex-direction:column;gap:8px;width:100%;max-width:320px;margin-bottom:20px}
+.stage-pill{display:flex;align-items:center;gap:10px;padding:12px 16px;border:1.5px solid #c8bf9a;border-radius:12px;background:white;cursor:pointer;font-size:14px;color:#3a3228;transition:all .15s}
+.stage-pill input{accent-color:#4a5a2a;width:16px;height:16px;cursor:pointer}
+.stage-pill.selected{border-color:#4a5a2a;background:#f0f4e4;font-weight:600}
 
 /* ── REPORT ── */
 #reportPage{display:none}
@@ -115,7 +119,8 @@ const FORM_STAGE = _STAGE_MAP[_stageParam] || _stageParam;
 <div id="loginPage">
   <p class="login-logo">公主營養師</p>
   <h1 class="login-title" id="loginTitle">查看我的回診報告</h1>
-  <p class="login-sub">請輸入填寫問卷時的手機號碼<br>即可查看你的回診報告</p>
+  <p class="login-sub">請選擇要查看的回診次數，並輸入填寫問卷時的手機號碼</p>
+  <div class="stage-select" id="stageSelect"></div>
   <input class="login-input" type="tel" id="phoneInput" placeholder="09xxxxxxxx" maxlength="10">
   <button class="login-btn" onclick="login()">查看報告 →</button>
   <p class="login-error" id="loginError"></p>
@@ -207,6 +212,33 @@ function toArray(val) {
     return val.split(/[,，、\n]/).map(s => s.trim()).filter(Boolean);
   }
   return [val];
+}
+
+// ══ 回診次數選擇器 ══
+const STAGE_OPTIONS = [
+  { key: '1st follow up', label: '第一次回診報告' },
+  { key: '2nd follow up', label: '第二次回診報告' },
+  { key: '3rd follow up', label: '第三次回診報告' }
+];
+function buildStageSelector() {
+  const container = document.getElementById('stageSelect');
+  STAGE_OPTIONS.forEach((s, i) => {
+    const id = `stage_${i}`;
+    const label = document.createElement('label');
+    label.className = 'stage-pill' + (s.key === FORM_STAGE ? ' selected' : '');
+    label.setAttribute('for', id);
+    label.innerHTML = `<input type="radio" name="stageChoice" id="${id}" value="${s.key}" ${s.key === FORM_STAGE ? 'checked' : ''}><span>${s.label}</span>`;
+    container.appendChild(label);
+  });
+  container.addEventListener('change', e => {
+    container.querySelectorAll('.stage-pill').forEach(l => l.classList.remove('selected'));
+    e.target.closest('label').classList.add('selected');
+  });
+}
+buildStageSelector();
+function getStageChoice() {
+  const el = document.querySelector('input[name="stageChoice"]:checked');
+  return el ? el.value : FORM_STAGE;
 }
 
 // ══ 把 symptoms 陣列攤平成 {題目: 結果} 物件 ══
@@ -455,14 +487,19 @@ const STAGE_CONFIG = {
 // ══ 登入 ══
 async function login() {
   const phone = document.getElementById('phoneInput').value.trim();
+  const stageChoice = getStageChoice();
   if (!phone) { showError('請輸入手機號碼'); return; }
+  if (!STAGE_CONFIG[stageChoice]) {
+    showError('這次回診的報告頁面尚未建置完成，請聯繫營養師');
+    return;
+  }
   const btn = document.querySelector('.login-btn');
   btn.textContent = '查詢中…'; btn.disabled = true;
   try {
     const res = await fetch(ENDPOINT_REPORT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-make-apikey': 'princess-initial' },
-      body: JSON.stringify({ phone, '填表階段': FORM_STAGE })
+      body: JSON.stringify({ phone, '填表階段': stageChoice })
     });
     const text = await res.text();
     const data = JSON.parse(text);
@@ -472,7 +509,7 @@ async function login() {
       return;
     }
     try {
-      renderReport(data, FORM_STAGE);
+      renderReport(data, stageChoice);
     } catch (renderErr) {
       console.error('報告渲染失敗:', renderErr);
       showError('報告內容解析失敗，請聯繫工程人員（瀏覽器 Console 有詳細錯誤）');
@@ -533,11 +570,6 @@ function renderReport(data, stageKey) {
   }
 
   window.scrollTo(0, 0);
-}
-
-// ══ 啟動檢查：這次回診是否已經建置完成 ══
-if (!STAGE_CONFIG[FORM_STAGE]) {
-  document.body.innerHTML = '<p style="text-align:center;padding:80px 20px;color:#7a6e5f;font-size:15px">這次回診的報告頁面尚未建置完成，請稍候，或聯繫營養師。</p>';
 }
 </script>
 </body>

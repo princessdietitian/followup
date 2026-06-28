@@ -196,6 +196,19 @@ function pickField(obj, keys) {
   return undefined;
 }
 
+// ══ 工具：確保拿到的值一定是陣列 ══
+// 用途：有些欄位（像排序題、複選題）從 Airtable 撈回來時，
+// 有可能不是真的陣列、而是被存成單一字串（依逗號/頓號/換行分隔）。
+// 這個函式統一轉成陣列，避免後面呼叫 .map()/.includes() 時因型態不對而整段中斷。
+function toArray(val) {
+  if (Array.isArray(val)) return val;
+  if (val == null || val === '') return [];
+  if (typeof val === 'string') {
+    return val.split(/[,，、\n]/).map(s => s.trim()).filter(Boolean);
+  }
+  return [val];
+}
+
 // ══ 把 symptoms 陣列攤平成 {題目: 結果} 物件 ══
 function symptomsArrayToFlat(symptomsObj) {
   const flat = {};
@@ -309,7 +322,7 @@ function renderQuantityTable(rows, current) {
 
 // ══ 最後quiz答案頁 ══
 function renderMultiQuiz(item, current) {
-  const userAns = pickField(current, item.answerKeys) || [];
+  const userAns = toArray(pickField(current, item.answerKeys));
   return `<div class="quiz-block">
     <div class="quiz-q">${item.question}</div>
     ${item.options.map(opt => {
@@ -325,7 +338,7 @@ function renderMultiQuiz(item, current) {
 }
 
 function renderRankQuiz(item, current) {
-  const userOrder = pickField(current, item.answerKeys) || [];
+  const userOrder = toArray(pickField(current, item.answerKeys));
   return `<div class="quiz-block">
     <div class="quiz-q">${item.question}</div>
     <div class="two-col" style="grid-template-columns:1fr 1fr">
@@ -392,17 +405,17 @@ const STAGE_CONFIG = {
     symptomDims: ['sleep','diet'],
     knowledgeColumns: [
       { title: '正念飲食', items: [
-        { label: '有意識的咀嚼食物', check: c => (pickField(c,['用餐習慣'])||[]).includes('我會有意識地咀嚼食物') },
-        { label: '用餐20分鐘以上', check: c => (pickField(c,['用餐習慣'])||[]).includes('我晚餐時間可以用餐 20 分鐘以上') },
-        { label: '每日飲水2000mL', check: c => (pickField(c,['用餐習慣'])||[]).includes('我每天飲水超過 2000 mL') },
-        { label: '我能掌控自己的食慾', check: c => (pickField(c,['用餐習慣'])||[]).includes('我不會一直想著下一餐要吃什麼') },
+        { label: '有意識的咀嚼食物', check: c => toArray(pickField(c,['用餐習慣'])).includes('我會有意識地咀嚼食物') },
+        { label: '用餐20分鐘以上', check: c => toArray(pickField(c,['用餐習慣'])).includes('我晚餐時間可以用餐 20 分鐘以上') },
+        { label: '每日飲水2000mL', check: c => toArray(pickField(c,['用餐習慣'])).includes('我每天飲水超過 2000 mL') },
+        { label: '我能掌控自己的食慾', check: c => toArray(pickField(c,['用餐習慣'])).includes('我不會一直想著下一餐要吃什麼') },
         // ⚠️ 「自己準備餐食」在FU1問卷裡找不到對應題目，目前先當成跟纖維/好油脂一樣的營養師手動欄位處理，
         // Airtable 還沒有這個欄位，要先新增才會生效，現在會一律顯示未勾選
         { label: '自己準備餐食', check: (c,b,p) => !!pickField(p,['自己準備餐食']) }
       ]},
       { title: '食物份量', items: [
         { label: '知道什麼是六大類', check: c => {
-            const sel = pickField(c, ['六大類食物','六大類食物認知']) || [];
+            const sel = toArray(pickField(c, ['六大類食物','六大類食物認知']));
             return ['主食/全穀雜糧','豆魚蛋肉','水果','油脂'].every(x => sel.includes(x));
           } },
         { label: '能估算油脂份量', check: c => Math.abs((pickField(c,['油脂份數']) ?? -99) - 3) <= 0.5 },
@@ -412,13 +425,13 @@ const STAGE_CONFIG = {
       ]},
       { title: '血糖穩定', items: [
         { label: '理解血糖壓力之關聯', check: c => {
-            const sel = pickField(c, ['血糖穩定時的身體感受','血糖身體感受']) || [];
+            const sel = toArray(pickField(c, ['血糖穩定時的身體感受','血糖身體感受']));
             return ['情緒起伏較小','專注力較能維持','心情較平穩'].every(x => sel.includes(x));
           } },
         { label: '固定攝取纖維', check: (c,b,p) => !!pickField(p, ['固定攝取纖維']) },
         { label: '固定攝取好油脂', check: (c,b,p) => !!pickField(p, ['固定攝取好油脂']) },
         { label: '理解油脂的重要性', check: c => {
-            const order = pickField(c, ['食物組合排序','排序']) || [];
+            const order = toArray(pickField(c, ['食物組合排序','排序']));
             const correctOrder = ['A肝連湯＋燙青菜＋滷豆腐','C肝連湯＋燙青菜＋1顆奇異果','D超商沙拉＋地瓜1顆','B大碗乾麵'];
             return JSON.stringify(order) === JSON.stringify(correctOrder);
           } },
@@ -458,7 +471,13 @@ async function login() {
       btn.textContent = '查看報告 →'; btn.disabled = false;
       return;
     }
-    renderReport(data, FORM_STAGE);
+    try {
+      renderReport(data, FORM_STAGE);
+    } catch (renderErr) {
+      console.error('報告渲染失敗:', renderErr);
+      showError('報告內容解析失敗，請聯繫工程人員（瀏覽器 Console 有詳細錯誤）');
+      btn.textContent = '查看報告 →'; btn.disabled = false;
+    }
   } catch (e) {
     console.log('錯誤:', e);
     showError('系統錯誤，請稍後再試');

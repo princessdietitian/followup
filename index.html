@@ -92,6 +92,20 @@ body{font-family:'Noto Sans TC',sans-serif;background:#F5F0E8;color:#3a3228;min-
 /* ── 營養師補充 ── */
 .note-box{background:white;border:1.5px dashed #c8bf9a;border-radius:12px;padding:18px;font-size:14px;color:#5a5040;line-height:1.8;white-space:pre-wrap}
 
+/* ── 21天排毒衛教指南 ── */
+.detox-disclaimer{background:#fef3e2;border:1px solid #e8c870;border-radius:10px;padding:12px 16px;font-size:12px;color:#7a5a10;margin-bottom:20px;line-height:1.6}
+.detox-list{font-size:13px;color:#5a5040;line-height:2}
+.detox-table{width:100%;border-collapse:collapse;margin-top:12px;background:white}
+.detox-table th,.detox-table td{border:1px solid #e0d8c0;padding:10px;font-size:12px;vertical-align:top;text-align:left}
+.detox-table th{background:#eef2e0;color:#4a5a2a}
+.troubleshoot-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px}
+.troubleshoot-card{background:white;border:1px solid #e0d8c0;border-radius:12px;padding:14px;font-size:12px;line-height:1.6}
+.troubleshoot-card h4{font-size:13px;color:#4a5a2a;margin-bottom:8px}
+.troubleshoot-card .tip{color:#7a9a3a;font-weight:600;margin-top:6px}
+.detox-img-slot{border:1.5px dashed #d0c8b0;border-radius:12px;padding:12px;background:white;margin-bottom:16px}
+.detox-img-slot img{width:100%;border-radius:10px;display:block}
+.detox-img-slot .slot-label{font-size:12px;color:#a09080;margin-top:6px;text-align:center}
+
 @media print{
   .report-nav,.back-btn,.print-btn{display:none!important}
   .report-section{page-break-after:always;border:none;padding:32px}
@@ -184,9 +198,13 @@ const FORM_STAGE = _STAGE_MAP[_stageParam] || _stageParam;
         <div class="food-image-caption" id="foodImgCaption"></div>
       </div>
       <table class="quant-table" id="quantitySection"></table>
+      <div id="bentoJudgeSection"></div>
     </div>
     <div id="quizSection"></div>
   </div>
+
+  <!-- 21天排毒衛教指南（僅舒心方案顯示） -->
+  <div id="detoxSection"></div>
 </div>
 
 <script>
@@ -260,8 +278,18 @@ const DIMS = {
     label: '睡眠與精神',
     fields: ['睡｜精神亢奮','睡｜疲勞/睡醒還是累**','睡｜需要午睡','睡｜難入眠','睡｜半夜醒來(睡眠中斷)','睡｜打呼/睡眠呼吸中止','睡｜心情低落*','睡｜覺得被工作消耗*','睡｜不耐煩/愛生氣**'],
     labels: ['精神亢奮','疲勞/睡醒還累','需要午睡','難入眠','半夜醒來','打呼/呼吸中止','心情低落','被工作消耗','不耐煩/愛生氣']
+  },
+  digest: {
+    label: '消化與代謝',
+    fields: ['消｜脹氣**','消｜胃酸多/胃食道逆流','消｜噁心/想吐','消｜便秘**','消｜拉肚子','消｜排氣','消｜水腫**','消｜頻尿/憋尿困難'],
+    labels: ['脹氣','胃酸多/逆流','噁心/想吐','便秘','拉肚子','排氣','水腫','頻尿']
+  },
+  skin: {
+    label: '肌膚與免疫',
+    fields: ['肌｜痘痘/粉刺','肌｜皮膚乾燥/紅疹','肌｜落髮','肌｜過敏','肌｜鼻塞','肌｜流鼻水','肌｜喉嚨有痰','肌｜牙齦/喉嚨發炎','肌｜嘴破/潰瘍'],
+    labels: ['痘痘/粉刺','皮膚乾燥/紅疹','落髮','過敏','鼻塞','流鼻水','喉嚨有痰','牙齦/喉嚨發炎','嘴破/潰瘍']
   }
-  // digest / skin / female 留給 FU2、FU3 之後補上
+  // female 留給 FU3 之後補上
 };
 
 // ══ 症狀進步標記邏輯 ══
@@ -340,7 +368,8 @@ function renderKnowledgeChecklist(columns, current, baseline, profile) {
 
 // ══ 份量評估表 ══
 function renderQuantityTable(rows, current) {
-  return `<tr><th></th><th>你的答案</th><th>正確解答</th></tr>
+  const hasCalc = rows.some(r => r.calc);
+  return `<tr><th></th><th>你的答案</th><th>正確解答</th>${hasCalc ? '<th>計算方式</th>' : ''}</tr>
     ${rows.map(r => {
       const val = pickField(current, r.key);
       const pass = val !== undefined && Math.abs(val - r.correct) <= 0.5;
@@ -348,6 +377,7 @@ function renderQuantityTable(rows, current) {
         <td style="text-align:left;font-weight:600">${r.label}</td>
         <td class="${pass ? 'pass' : 'fail'}">${val ?? '—'}</td>
         <td>${r.correct}</td>
+        ${hasCalc ? `<td style="text-align:left;font-size:11px;color:#7a6e5f">${r.calc || ''}</td>` : ''}
       </tr>`;
     }).join('')}`;
 }
@@ -432,7 +462,287 @@ const FU1_QUIZ_REVIEW = [
   }
 ];
 
-// ══ 每次回診的專屬設定 ══
+// ══ 21天排毒衛教指南（僅舒心方案顯示） ══
+function renderImgSlot(filename, label) {
+  return `<div class="detox-img-slot">
+    <img src="${filename}" alt="${label}">
+    <div class="slot-label">${label}（請替換成實際照片：${filename}）</div>
+  </div>`;
+}
+
+function renderDetoxGuide() {
+  return `
+  <!-- 封面 -->
+  <div class="report-section">
+    <div class="sec-header">
+      <div class="sec-title">21 天排毒飲食指引</div>
+      <div class="sec-divider"></div>
+    </div>
+    <div class="detox-disclaimer">聲明：此飲食法為極端飲食，並不建議長期遵守。請於營養師陪同下進行。</div>
+    <div class="detox-list">
+      ✴ 為什麼我們需要排毒<br>
+      ✴ 排毒的 3 個關鍵器官<br>
+      ✴ 排毒期間的飲食原則<br>
+      ✴ 排毒期間的食物清單<br>
+      ✴ 過程不適的解決方法<br>
+      ✴ 菜單示範
+    </div>
+  </div>
+
+  <!-- 為什麼需要排毒 -->
+  <div class="report-section">
+    <div class="sec-header">
+      <div class="sec-title">為什麼需要排毒</div>
+      <div class="sec-divider"></div>
+    </div>
+    <div class="content-card">
+      <h3>毒素 Toxins</h3>
+      <div class="detox-list">
+        ✦ 食品添加物、塑膠微粒（塑化劑）<br>
+        ✦ 化學物質（沐浴香氛、化妝品、保養品、清潔劑）<br>
+        ✦ 空氣／水污染、重金屬<br>
+        ✦ 代謝廢物<br>
+        ✦ 氧化物質（自由基，內生性）
+      </div>
+    </div>
+    <div class="content-card">
+      <h3>理想上 vs 實際上</h3>
+      <p style="font-size:13px;color:#5a5040;line-height:1.8">
+        理想上，排毒器官應該隔絕毒素、順利將毒素排出體外。<br>
+        實際上，壓力導致交感神經旺盛、營養不均使生理機能運轉異常、腸黏膜受損無法抵禦毒素，
+        排毒器官無法發揮功能，毒素滯留於體內，造成一系列的生理問題：
+      </p>
+      <div class="detox-list" style="margin-top:8px">
+        ✦ 腦霧、容易疲勞、睡眠品質低下<br>
+        ✦ 容易脹氣、膚況不佳、關節疼痛<br>
+        ✦ 減重困難！！（毒素會累積在脂肪細胞，影響減脂效能）
+      </div>
+    </div>
+    <p style="text-align:center;font-size:14px;color:#7a6e5f;margin-top:8px">排毒飲食，就是在大力支持排毒器官運轉！</p>
+  </div>
+
+  <!-- 排毒的關鍵 -->
+  <div class="report-section">
+    <div class="sec-header">
+      <div class="sec-title">排毒的關鍵 — 疏肝通腸</div>
+      <div class="sec-divider"></div>
+    </div>
+    <p style="font-size:13px;color:#5a5040;margin-bottom:16px">
+      第一步：將毒素切小＆提升水溶性 → 第二步：與膽酸／水結合 → 透過腸肝循環送往大腸（糞便）、腎臟（尿液）、皮膚（汗液）排出
+    </p>
+    <div class="two-col">
+      <div class="content-card">
+        <h3>關鍵1：健康的腸道屏障</h3>
+        <p style="font-size:12px;color:#5a5040;line-height:1.7">菌叢失衡會讓準備排出的毒素重新送回肝臟！因此要確保下游疏通。過去強調養好菌，就是在打好基礎。</p>
+      </div>
+      <div class="content-card">
+        <h3>關鍵2：穩定血糖 降低肝臟負擔</h3>
+        <p style="font-size:12px;color:#5a5040;line-height:1.7">碳水會經由肝臟轉化成脂肪（負擔↑）。肝臟不需一直處理食物，才有能力處理累積已久的內存毒素。</p>
+      </div>
+      <div class="content-card">
+        <h3>關鍵3：避免細胞損傷</h3>
+        <p style="font-size:12px;color:#5a5040;line-height:1.7">為避免清除毒素的過程造成細胞傷害，補充大量抗氧化物至關重要。抗氧化物在蔬菜水果中最豐富。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 飲食原則 -->
+  <div class="report-section">
+    <div class="sec-header">
+      <div class="sec-title">排毒期間的飲食原則</div>
+      <div class="sec-divider"></div>
+    </div>
+    <p style="font-size:13px;color:#5a5040;margin-bottom:8px">排毒期間沒有份量、餐次概念，只要餓的時候吃正面表列的食物即可！洋甘菊、南非國寶茶、水果茶可以！</p>
+    <table class="detox-table">
+      <tr><th>1–7 天</th><th>8–21 天</th><th>地雷食物（21天完全避開）</th></tr>
+      <tr>
+        <td>
+          ✦ 蔬菜：每日攝取無上限<br>
+          ✦ 水果：總攝取量 ≤ 蔬菜的一半<br>
+          ✦ 油脂：好油脂每餐至少一湯匙<br>
+          ✦ 主食：完全避免<br>
+          ✦ 肉類：豆子（純素）／豆子+魚+白肉（葷）<br>
+          ✦ 飲水：> 2000 毫升<br>
+          ✦ 調味品：鹽、胡椒、天然辛香料、辣椒
+        </td>
+        <td>
+          ✦ 蔬菜：每日攝取無上限<br>
+          ✦ 水果：總攝取量 ≤ 蔬菜的一半<br>
+          ✦ 油脂：好油脂每餐至少一湯匙<br>
+          ✦ 主食：不超過4份，根莖雜糧<br>
+          ✦ 肉類：各種肉類皆可食用<br>
+          ✦ 飲水：> 2000 毫升<br>
+          ✦ 調味品：鹽、胡椒、天然辛香料、辣椒
+        </td>
+        <td>
+          ✦ 精緻主食：白飯、五穀飯、麵條、麵包<br>
+          ✦ 乳製品：牛奶、優格、優酪乳、起司<br>
+          ✦ 高致敏蛋白：帶殼海鮮、雞蛋、黃豆製品（豆腐、醬油）<br>
+          ✦ 加工食品、食品添加物：化學調味料、大豆油<br>
+          ✦ 咖啡因：咖啡、手搖飲料、茶<br>
+          ✦ 酒精、菸
+        </td>
+      </tr>
+    </table>
+    <p style="text-align:center;font-size:13px;color:#7a9a3a;margin-top:12px;font-weight:600">堅持不下去，就讓下一餐彈性大一點！目標是走完21天！</p>
+  </div>
+
+  <!-- 食物清單 -->
+  <div class="report-section">
+    <div class="sec-header">
+      <div class="sec-title">排毒期間的食物清單</div>
+      <div class="sec-divider"></div>
+    </div>
+    <div class="content-card">
+      <h3>蔬菜</h3>
+      <div class="detox-list">
+        ✦ 紅黃色：牛番茄、甜椒、玉米筍、紅蘿蔔、薑黃（保護肌膚、維持夜間視覺、黃斑部健康，油炒佳）<br>
+        ✦ 白色十字花科：白蘿蔔、花椰菜、青江菜（支持肝臟代謝，搭配薑黃並充分咀嚼吸收更佳）<br>
+        ✦ 深綠色：芹菜、菠菜、小黃瓜、櫛瓜、地瓜葉（大力清除氧化物，水溶性，煮湯/生吃佳）<br>
+        ✦ 黏滑類：菇類（香菇、木耳、金針菇）、秋葵（吸附毒素並修復腸道黏膜）
+      </div>
+    </div>
+    <div class="two-col">
+      <div class="content-card">
+        <h3>水果（≤蔬菜的一半）</h3>
+        <p style="font-size:12px;color:#5a5040;line-height:1.8">蘋果、藍莓、木瓜、奇異果、葡萄、鳳梨、梨子、桃子、香瓜、瓜類、香蕉</p>
+      </div>
+      <div class="content-card">
+        <h3>油脂</h3>
+        <p style="font-size:12px;color:#5a5040;line-height:1.8">橄欖油、酪梨油、奶油、豬油、牛油、酪梨、腰果、核桃、杏仁、亞麻仁、芝麻、南瓜子</p>
+      </div>
+      <div class="content-card">
+        <h3>豆魚蛋肉</h3>
+        <p style="font-size:12px;color:#5a5040;line-height:1.8">鷹嘴豆、毛豆、扁豆、黑豆、虱目魚、鮭魚、鯖魚、鮪魚、放山雞、豬肉、牛肉、內臟</p>
+      </div>
+      <div class="content-card">
+        <h3>全穀雜糧（第8天才能開始吃）</h3>
+        <p style="font-size:12px;color:#5a5040;line-height:1.8">地瓜、南瓜、芋頭、栗子、藜麥、樹薯、蓮藕、玉米、馬鈴薯</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 過程不適 -->
+  <div class="report-section">
+    <div class="sec-header">
+      <div class="sec-title">過程不適的解決方法</div>
+      <div class="sec-divider"></div>
+    </div>
+    <p style="font-size:12px;color:#7a6e5f;margin-bottom:8px">這些反應不一定會發生在每個人身上，若你有以下情形請讓營養師知道，以協助舒緩表徵：</p>
+    <div class="troubleshoot-grid">
+      <div class="troubleshoot-card">
+        <h4>腦袋／思緒</h4>
+        大腦非常耗能容易產生毒素，有可能在前5天劇烈頭痛
+        <div class="tip">✱ 提升睡眠時數<br>✱ 飲水</div>
+      </div>
+      <div class="troubleshoot-card">
+        <h4>皮膚／口腔</h4>
+        若毒素傾向從表皮釋放，有可能紅疹、痘痘、嘴破
+        <div class="tip">✱ 適度運動流汗並趕快沖澡<br>✱ 烤箱/桑拿　✱ 嘴破建議忍耐</div>
+      </div>
+      <div class="troubleshoot-card">
+        <h4>排便／尿尿</h4>
+        排毒會使尿量、頻率提升，且可能便秘
+        <div class="tip">✱ 確保纖維、油脂攝取充足<br>✱ 感覺是否排空完全</div>
+      </div>
+      <div class="troubleshoot-card">
+        <h4>肌肉／體力</h4>
+        減低碳水會影響運動表現，運動使肌肉酸痛會影響排毒
+        <div class="tip">✱ 請勿進行高強度運動<br>✱ 將水果擺在運動前吃</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 成效說明 -->
+  <div class="report-section">
+    <div class="sec-header">
+      <div class="sec-title">在這 21 天中</div>
+      <div class="sec-divider"></div>
+    </div>
+    <div class="content-card">
+      <p style="font-size:14px;color:#5a5040;line-height:2">
+        執行越貼近原則，整體成效會越明顯。若遇到無法完全避免的用餐情境，整體效果仍會優於未曾進行調整的狀態。<br><br>
+        每一天都是重新調整的機會，若覺得執行上有壓力，允許自己在下一餐保留一些彈性。<br><br>
+        只要能持續回到原則，這 21 天依然是有意義的歷程，請不要因為單次偏離而影響繼續前進的心態。
+      </p>
+    </div>
+  </div>
+
+  <!-- 菜單與食譜（黃底頁面，請貼上實際照片） -->
+  <div class="report-section">
+    <div class="sec-header">
+      <div class="sec-title">公主營養師排毒示範菜單</div>
+      <div class="sec-divider"></div>
+    </div>
+    ${renderImgSlot('detox-menu1.png', '排毒示範菜單 1')}
+    ${renderImgSlot('detox-menu2.png', '排毒示範菜單 2')}
+  </div>
+  <div class="report-section">
+    <div class="sec-header">
+      <div class="sec-title">料理食譜</div>
+      <div class="sec-divider"></div>
+    </div>
+    ${renderImgSlot('detox-recipe-sauce.png', '料理食譜－沙拉沾醬')}
+    ${renderImgSlot('detox-recipe-beans.png', '料理食譜－豆類料理')}
+    ${renderImgSlot('detox-recipe-meat.png', '料理食譜－肉類料理')}
+  </div>
+  `;
+}
+
+// ══ FU2 份量評估表（共用給 quantityTable 跟「從食品標示辨別六大類」checklist判定） ══
+const FU2_QUANTITY_ROWS = [
+  { label: '蔬菜', key: ['蔬菜份數'], correct: 1, calc: '1份蔬菜＝5克碳水＋1克蛋白質' },
+  { label: '主食', key: ['主食份數'], correct: 3, calc: '(51.8-5)/15＝3.12份' },
+  { label: '肉類', key: ['肉類份數'], correct: 1.5, calc: '(18.4-[(1*1)+(3*2)])/7＝1.6份' },
+  { label: '油脂', key: ['油脂份數'], correct: 1, calc: '[10-(1.6*3)]/5＝1.04份' }
+];
+
+// ══ FU2 最後quiz定義 ══
+const FU2_QUIZ_REVIEW = [
+  {
+    type: 'multi',
+    question: '建構肌肉需要哪些營養素？',
+    options: ['蛋白質','鋅','維生素B群','天然香料','代糖'],
+    correct: ['蛋白質','鋅','維生素B群'],
+    answerKeys: ['建構肌肉營養素']
+  },
+  {
+    type: 'multi',
+    question: '下列哪些是推薦的『好油脂』呢？',
+    options: ['酪梨','大豆油','堅果','橄欖油','葵花油','奶油','亞麻仁油'],
+    correct: ['酪梨','堅果','橄欖油','奶油','亞麻仁油'],
+    answerKeys: ['推薦好油脂']
+  },
+  {
+    type: 'multi',
+    question: '腸道健康有哪些好處？',
+    options: ['有好心情','免疫機能好','皮膚有光澤','營養好吸收'],
+    correct: ['有好心情','免疫機能好','皮膚有光澤','營養好吸收'],
+    answerKeys: ['腸道健康好處']
+  },
+  {
+    type: 'multi',
+    question: '腸道『好菌』喜歡吃哪些食物？',
+    options: ['益生菌','酸黃瓜','蔬菜','無糖鮮奶茶','納豆','全麥麵包','水果'],
+    correct: ['酸黃瓜','蔬菜','納豆','水果'],
+    answerKeys: ['好菌喜歡的食物']
+  },
+  {
+    type: 'multi',
+    question: '什麼時候是服用益生菌的好時機？',
+    options: ['吃完抗生素','便秘兩天','便秘兩週','拉肚子兩週','想吃就吃'],
+    correct: ['吃完抗生素','便秘兩週','拉肚子兩週'],
+    answerKeys: ['益生菌服用時機']
+  },
+  {
+    type: 'single',
+    question: '你覺得這是一款營養師會建議買的便當嗎？',
+    options: ['可以 🟢','免強 🟡','不建議 🔴'],
+    correct: '免強 🟡',
+    answerKeys: ['便當評價']
+  }
+];
+
 const STAGE_CONFIG = {
   '1st follow up': {
     label: '第一次回診報告',
@@ -483,7 +793,47 @@ const STAGE_CONFIG = {
     foodImageCaption: '配菜包含：豆腐蘿蔔煮、木耳炒小松、悶煮金針菇、香腸兩片（圖片來源：鬍鬚張便當店）',
     quizReview: FU1_QUIZ_REVIEW
   },
-  '2nd follow up': null, // 待之後補上
+  '2nd follow up': {
+    label: '第二次回診報告',
+    overviewImage: 'overview-fu2.png',
+    symptomDims: ['digest','skin'],
+    knowledgeColumns: [
+      { title: '食物品質', items: [
+        { label: '從食品標示辨別六大類食物', check: c => FU2_QUANTITY_ROWS.every(r => {
+            const val = pickField(c, r.key);
+            return val !== undefined && Math.abs(val - r.correct) <= 0.5;
+          }) },
+        { label: '理解越少接觸加工品越理想', check: c => (pickField(c, ['便當評價']) || '').includes('免強') },
+        { label: '理解油脂品質差異', check: c => {
+            const sel = toArray(pickField(c, ['推薦好油脂']));
+            return ['酪梨','堅果','橄欖油','奶油','亞麻仁油'].every(x => sel.includes(x));
+          } },
+        { label: '理解建構肌肉需要的營養素', check: c => {
+            const sel = toArray(pickField(c, ['建構肌肉營養素']));
+            return ['蛋白質','鋅','維生素B群'].every(x => sel.includes(x));
+          } }
+      ]},
+      { title: '腸道健康', items: [
+        { label: '理解腸黏膜健康的重要性', check: c => {
+            const sel = toArray(pickField(c, ['腸道健康好處']));
+            return ['有好心情','免疫機能好','皮膚有光澤','營養好吸收'].every(x => sel.includes(x));
+          } },
+        { label: '知道腸道好菌愛吃的食物', check: c => {
+            const sel = toArray(pickField(c, ['好菌喜歡的食物']));
+            return ['納豆','酸黃瓜','蔬菜','水果'].every(x => sel.includes(x));
+          } },
+        { label: '知道什麼情況適合吃益生菌', check: c => {
+            const sel = toArray(pickField(c, ['益生菌服用時機']));
+            return ['吃完抗生素','便秘兩週','拉肚子兩週'].every(x => sel.includes(x));
+          } }
+      ]}
+    ],
+    quantityTable: FU2_QUANTITY_ROWS,
+    foodImage: 'familymartbento.png',
+    foodImageCaption: '這是一個香烤雞胸蔬菜餐，請參考食品標示',
+    quizReview: FU2_QUIZ_REVIEW,
+    showDetoxIfPlanIncludes: '舒心'
+  },
   '3rd follow up': null  // 待之後補上
 };
 
@@ -554,6 +904,7 @@ function renderReport(data, stageKey) {
   document.getElementById('symptomSection').innerHTML = renderSymptomSection(cfg.symptomDims, baseline, currentSymptoms);
   document.getElementById('knowledgeSection').innerHTML = renderKnowledgeChecklist(cfg.knowledgeColumns, current, baseline, profile);
   document.getElementById('quantitySection').innerHTML = renderQuantityTable(cfg.quantityTable, current);
+  document.getElementById('bentoJudgeSection').innerHTML = cfg.bentoJudge ? renderSingleQuiz(cfg.bentoJudge, current) : '';
   document.getElementById('foodImg').src = cfg.foodImage;
   document.getElementById('foodImgCaption').textContent = cfg.foodImageCaption;
 
@@ -563,6 +914,14 @@ function renderReport(data, stageKey) {
     if (item.type === 'single') return renderSingleQuiz(item, current);
     return '';
   }).join('');
+
+  const planName = pickField(profile, ['所選方案']) || '';
+  const detoxEl = document.getElementById('detoxSection');
+  if (cfg.showDetoxIfPlanIncludes && planName.includes(cfg.showDetoxIfPlanIncludes)) {
+    detoxEl.innerHTML = renderDetoxGuide();
+  } else {
+    detoxEl.innerHTML = '';
+  }
 
   const note = pickField(profile, ['第一次營養師補充']);
   const noteBox = document.getElementById('nutritionistNote');

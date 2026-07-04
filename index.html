@@ -547,13 +547,6 @@ const FU1_QUIZ_REVIEW = [
 ];
 
 // ══ 21天排毒衛教指南（僅舒心方案顯示） ══
-function renderImgSlot(filename, label) {
-  return `<div class="detox-img-slot">
-    <img src="${filename}" alt="${label}">
-    <div class="slot-label">${label}（請替換成實際照片：${filename}）</div>
-  </div>`;
-}
-
 function renderDetoxGuide() {
   return `
     ${renderImgSlot('detox-cover.png', '21天排毒飲食指引')}

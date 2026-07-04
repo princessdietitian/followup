@@ -290,9 +290,108 @@ const DIMS = {
     label: '肌膚與免疫',
     fields: ['肌｜痘痘/粉刺','肌｜皮膚乾燥/紅疹','肌｜落髮','肌｜過敏','肌｜鼻塞','肌｜流鼻水','肌｜喉嚨有痰','肌｜牙齦/喉嚨發炎','肌｜嘴破/潰瘍'],
     labels: ['痘痘/粉刺','皮膚乾燥/紅疹','落髮','過敏','鼻塞','流鼻水','喉嚨有痰','牙齦/喉嚨發炎','嘴破/潰瘍']
+  },
+  female: {
+    label: '女性健康',
+    max: 21,
+    fields: ['女｜經期不穩定','女｜週期間隔>30天','女｜經前症候群','女｜經期情緒低落','女｜經期不適','女｜經期服用止痛藥','女｜經期血塊大、血液顏色深'],
+    labels: ['經期不穩定','週期間隔>30天','經前症候群','經期情緒低落','經期不適','服用止痛藥','血塊大/顏色深']
   }
-  // female 留給 FU3 之後補上
 };
+
+// ══ 計算象限得分（0–100%），給五邊形使用 ══
+// 分數愈低愈好（0 = 完全沒症狀 → 健康100%）
+// max 是該象限所有題目分數加總的上限（每題最高4分）
+const DIM_MAX = { diet:28, digest:32, sleep:36, skin:36, female:28 };
+function calcDimPct(flatData, dim) {
+  const d = DIMS[dim];
+  const max = DIM_MAX[dim] || (d.fields.length * 4);
+  const raw = d.fields.reduce((s, f) => s + (flatData[f] || 0), 0);
+  // 健康度 = 1 - (症狀分數/滿分)，分數愈低健康度愈高
+  return Math.round((1 - raw / max) * 100);
+}
+
+// ══ 五邊形雷達圖（雙層：初診淺色 + 這次深色） ══
+function drawPentagonComparison(canvasId, baselineFlat, currentFlat) {
+  setTimeout(() => {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const cx = W / 2, cy = H / 2 + 10, r = Math.min(W, H) / 2 - 50;
+    const dims = ['diet','digest','sleep','skin','female'];
+    const labels = [['飲食','體態'],['消化','代謝'],['睡眠','精神'],['肌膚','免疫'],['女性','健康']];
+    const angles = dims.map((_, i) => -Math.PI / 2 + (2 * Math.PI / 5) * i);
+
+    ctx.clearRect(0, 0, W, H);
+
+    // 格線
+    for (let g = 1; g <= 5; g++) {
+      ctx.beginPath();
+      angles.forEach((a, i) => {
+        const gr = r * (g / 5);
+        const x = cx + gr * Math.cos(a), y = cy + gr * Math.sin(a);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.closePath();
+      ctx.strokeStyle = 'rgba(74,90,42,0.12)'; ctx.lineWidth = 1; ctx.stroke();
+    }
+    // 軸線
+    angles.forEach(a => {
+      ctx.beginPath(); ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a));
+      ctx.strokeStyle = 'rgba(74,90,42,0.18)'; ctx.lineWidth = 1; ctx.stroke();
+    });
+
+    // 繪製多邊形的輔助函式
+    function drawPolygon(flat, fillColor, strokeColor) {
+      ctx.beginPath();
+      dims.forEach((d, i) => {
+        const pct = calcDimPct(flat, d) / 100;
+        const x = cx + r * pct * Math.cos(angles[i]);
+        const y = cy + r * pct * Math.sin(angles[i]);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.closePath();
+      ctx.fillStyle = fillColor; ctx.fill();
+      ctx.strokeStyle = strokeColor; ctx.lineWidth = 2; ctx.stroke();
+      // 圓點
+      dims.forEach((d, i) => {
+        const pct = calcDimPct(flat, d) / 100;
+        const x = cx + r * pct * Math.cos(angles[i]);
+        const y = cy + r * pct * Math.sin(angles[i]);
+        ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = strokeColor; ctx.fill();
+      });
+    }
+
+    // 初診（淺色）
+    drawPolygon(baselineFlat, 'rgba(200,168,74,0.15)', 'rgba(200,168,74,0.7)');
+    // 這次 FU3（深色）
+    drawPolygon(currentFlat, 'rgba(74,90,42,0.2)', '#4a5a2a');
+
+    // 標籤
+    ctx.font = 'bold 13px sans-serif'; ctx.fillStyle = '#4a5a2a'; ctx.textAlign = 'center';
+    const labelR = r + 28;
+    labels.forEach((l, i) => {
+      const x = cx + labelR * Math.cos(angles[i]);
+      const y = cy + labelR * Math.sin(angles[i]);
+      ctx.fillText(l[0], x, y - 6);
+      ctx.fillText(l[1], x, y + 10);
+    });
+
+    // 圖例
+    const legendY = H - 18;
+    ctx.fillStyle = 'rgba(200,168,74,0.7)';
+    ctx.fillRect(cx - 80, legendY - 8, 12, 12);
+    ctx.fillStyle = '#7a6e5f'; ctx.font = '11px sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText('初診', cx - 64, legendY + 2);
+    ctx.fillStyle = '#4a5a2a';
+    ctx.fillRect(cx - 10, legendY - 8, 12, 12);
+    ctx.fillStyle = '#7a6e5f';
+    ctx.fillText('這次', cx + 6, legendY + 2);
+  }, 150);
+}
 
 // ══ 症狀進步標記邏輯 ══
 // 規則：baseline=4 且這次降到 ≤2 的優先標記；
@@ -547,6 +646,13 @@ const FU1_QUIZ_REVIEW = [
 ];
 
 // ══ 21天排毒衛教指南（僅舒心方案顯示） ══
+function renderImgSlot(filename, label) {
+  return `<div class="detox-img-slot">
+    <img src="${filename}" alt="${label}">
+    <div class="slot-label">${label}（請替換成實際照片：${filename}）</div>
+  </div>`;
+}
+
 function renderDetoxGuide() {
   return `
     ${renderImgSlot('detox-cover.png', '21天排毒飲食指引')}

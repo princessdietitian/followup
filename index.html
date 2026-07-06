@@ -161,7 +161,7 @@ const FORM_STAGE = _STAGE_MAP[_stageParam] || _stageParam;
     <img id="overviewImg" src="" alt="計劃流程總覽" style="width:100%;border-radius:16px;display:block">
   </div>
 
-  <!-- 生理機能：體重 + 症狀進步 -->
+  <!-- 生理機能：體重 + 睡眠時數 + 症狀進步 + 五邊形（FU3限定） -->
   <div class="report-section">
     <div class="sec-header">
       <div class="sec-title">生理機能</div>
@@ -171,7 +171,18 @@ const FORM_STAGE = _STAGE_MAP[_stageParam] || _stageParam;
       <h3>體重變化</h3>
       <div id="weightSection"></div>
     </div>
+    <!-- 睡眠時數（FU3 才顯示，JS 控制） -->
+    <div class="content-card" id="sleepHoursCard" style="display:none">
+      <h3>平均每日睡眠時間</h3>
+      <div id="sleepHoursSection" style="font-size:28px;font-weight:700;color:#4a5a2a;text-align:center;padding:8px 0"></div>
+    </div>
     <div id="symptomSection"></div>
+    <!-- 五邊形雷達圖（FU3 才顯示，JS 控制） -->
+    <div class="content-card" id="pentagonCard" style="display:none">
+      <h3>五大象限對比</h3>
+      <p style="font-size:12px;color:#a09080;margin-bottom:8px">金色＝初診基準　深綠＝這次　愈靠外代表該象限症狀愈少（健康度愈高）</p>
+      <canvas id="pentagonCanvas" width="480" height="360" style="width:100%;max-width:480px;display:block;margin:0 auto"></canvas>
+    </div>
     <div class="note-box" id="nutritionistNote" style="display:none">
       <strong>營養師補充：</strong>
       <div class="note-text"></div>
@@ -819,7 +830,21 @@ const STAGE_CONFIG = {
     quizReview: FU2_QUIZ_REVIEW,
     showDetoxIfPlanIncludes: '舒心'
   },
-  '3rd follow up': null  // 待之後補上
+  '3rd follow up': {
+    label: '第三次回診報告',
+    overviewImage: 'overview-fu3.png',
+    knowledgeTitle: '高階營養學知識',
+    nutritionistNoteKey: '第三次營養師補充',
+    symptomDims: ['diet','digest','sleep','skin','female'],
+    showPentagon: true,
+    showSleepHours: true,
+    knowledgeColumns: [],
+    quantityTable: [],
+    foodImage: '',
+    foodImageCaption: '',
+    quizReview: [],
+    showDetoxIfPlanIncludes: null
+  }
 };
 
 // ══ 登入 ══
@@ -885,23 +910,61 @@ function renderReport(data, stageKey) {
   document.getElementById('coverName').textContent = pickField(current, ['你的名字']) || pickField(baseline, ['你的名字']) || '';
   document.getElementById('overviewImg').src = cfg.overviewImage || '';
 
+  // 體重折線圖
   document.getElementById('weightSection').innerHTML = renderWeightCompare(data.weightRecords, baseline, current);
+
+  // 症狀進步標記
   document.getElementById('symptomSection').innerHTML = renderSymptomSection(cfg.symptomDims, baseline, currentSymptoms);
-  document.getElementById('knowledgeSection').innerHTML = renderKnowledgeChecklist(cfg.knowledgeColumns, current, baseline, profile);
-  // 3. 知識欄標題依回診次數不同（FU1=基礎、FU2=進階、FU3=高階）
-  document.querySelector('#knowledgeSectionTitle .sec-title').textContent = cfg.knowledgeTitle || '基礎營養學知識';
-  document.getElementById('quantitySection').innerHTML = renderQuantityTable(cfg.quantityTable, current);
-  document.getElementById('bentoJudgeSection').innerHTML = cfg.bentoJudge ? renderSingleQuiz(cfg.bentoJudge, current) : '';
-  document.getElementById('foodImg').src = cfg.foodImage;
-  document.getElementById('foodImgCaption').textContent = cfg.foodImageCaption;
 
-  document.getElementById('quizSection').innerHTML = cfg.quizReview.map(item => {
-    if (item.type === 'multi') return renderMultiQuiz(item, current);
-    if (item.type === 'rank') return renderRankQuiz(item, current);
-    if (item.type === 'single') return renderSingleQuiz(item, current);
-    return '';
-  }).join('');
+  // 睡眠時數（FU3 限定）
+  const sleepCard = document.getElementById('sleepHoursCard');
+  if (cfg.showSleepHours) {
+    const sleepHours = pickField(current, ['平均每日睡眠時間（hr）','平均每日睡眠時間 (hr)']);
+    if (sleepHours != null) {
+      sleepCard.style.display = 'block';
+      document.getElementById('sleepHoursSection').textContent = `${sleepHours} 小時`;
+    }
+  } else {
+    sleepCard.style.display = 'none';
+  }
 
+  // 五邊形雷達圖（FU3 限定）
+  const pentagonCard = document.getElementById('pentagonCard');
+  if (cfg.showPentagon) {
+    pentagonCard.style.display = 'block';
+    drawPentagonComparison('pentagonCanvas', baseline, currentSymptoms);
+  } else {
+    pentagonCard.style.display = 'none';
+  }
+
+  // 知識 checklist（FU3 無，隱藏整個區塊）
+  const knowledgeSectionEl = document.getElementById('knowledgeSectionTitle').closest('.report-section');
+  if (cfg.knowledgeColumns && cfg.knowledgeColumns.length > 0) {
+    knowledgeSectionEl.style.display = 'block';
+    document.getElementById('knowledgeSection').innerHTML = renderKnowledgeChecklist(cfg.knowledgeColumns, current, baseline, profile);
+    document.querySelector('#knowledgeSectionTitle .sec-title').textContent = cfg.knowledgeTitle || '基礎營養學知識';
+  } else {
+    knowledgeSectionEl.style.display = 'none';
+  }
+
+  // 份量評估＋題目解析（FU3 無，隱藏整個區塊）
+  const quizSectionEl = document.getElementById('quizSection').closest('.report-section');
+  if (cfg.quantityTable && cfg.quantityTable.length > 0) {
+    quizSectionEl.style.display = 'block';
+    document.getElementById('quantitySection').innerHTML = renderQuantityTable(cfg.quantityTable, current);
+    document.getElementById('foodImg').src = cfg.foodImage || '';
+    document.getElementById('foodImgCaption').textContent = cfg.foodImageCaption || '';
+    document.getElementById('quizSection').innerHTML = cfg.quizReview.map(item => {
+      if (item.type === 'multi') return renderMultiQuiz(item, current);
+      if (item.type === 'rank') return renderRankQuiz(item, current);
+      if (item.type === 'single') return renderSingleQuiz(item, current);
+      return '';
+    }).join('');
+  } else {
+    quizSectionEl.style.display = 'none';
+  }
+
+  // 排毒指南（舒心方案 FU2 限定）
   const planName = pickField(profile, ['所選方案']) || '';
   const detoxEl = document.getElementById('detoxSection');
   if (cfg.showDetoxIfPlanIncludes && planName.includes(cfg.showDetoxIfPlanIncludes)) {
@@ -910,7 +973,7 @@ function renderReport(data, stageKey) {
     detoxEl.innerHTML = '';
   }
 
-  // 4. 營養師補充：依回診次數讀對應欄位（FU1=第一次、FU2=第二次）
+  // 營養師補充（依回診次數讀對應欄位）
   const note = cfg.nutritionistNoteKey ? pickField(profile, [cfg.nutritionistNoteKey]) : null;
   const noteBox = document.getElementById('nutritionistNote');
   if (note) {

@@ -177,11 +177,16 @@ const FORM_STAGE = _STAGE_MAP[_stageParam] || _stageParam;
       <div id="sleepHoursSection" style="font-size:28px;font-weight:700;color:#4a5a2a;text-align:center;padding:8px 0"></div>
     </div>
     <div id="symptomSection"></div>
-    <!-- 五邊形雷達圖（FU3 才顯示，JS 控制） -->
+    <!-- 壓力指數＋五邊形雷達圖（FU3 才顯示，JS 控制） -->
     <div class="content-card" id="pentagonCard" style="display:none">
-      <h3>五大象限對比</h3>
-      <p style="font-size:12px;color:#a09080;margin-bottom:8px">金色＝初診基準　深綠＝這次　愈靠外代表該象限症狀愈少（健康度愈高）</p>
-      <canvas id="pentagonCanvas" width="480" height="360" style="width:100%;max-width:480px;display:block;margin:0 auto"></canvas>
+      <h3>壓力與整體健康狀態</h3>
+      <div style="display:grid;grid-template-columns:140px 1fr;gap:24px;align-items:center">
+        <div id="pressureCompareSection"></div>
+        <div>
+          <p style="font-size:12px;color:#a09080;margin-bottom:8px">金色＝初診基準　深綠＝這次　愈靠外代表健康度愈高</p>
+          <canvas id="pentagonCanvas" width="480" height="380" style="width:100%;max-width:480px;display:block;margin:0 auto"></canvas>
+        </div>
+      </div>
     </div>
     <div class="note-box" id="nutritionistNote" style="display:none">
       <strong>營養師補充：</strong>
@@ -310,16 +315,76 @@ const DIMS = {
   }
 };
 
-// ══ 計算象限得分（0–100%），給五邊形使用 ══
-// 分數愈低愈好（0 = 完全沒症狀 → 健康100%）
-// max 是該象限所有題目分數加總的上限（每題最高4分）
-const DIM_MAX = { diet:28, digest:32, sleep:36, skin:36, female:28 };
+// ══ 跟初診報告共用的分數轉換邏輯 ══
+// 注意：初診報告的五邊形用的是「健康轉換分」(0→3, 1→2, 2→2, 3→1, 4→0)
+// 這樣低症狀 = 高分 = 五邊形愈靠外 = 健康度愈高，跟 FU3 比較才有意義
+function convertScoreHealth(v){ return v===0?3:v===1?2:v===2?2:v===3?1:0; }
+function convertScoreStress(v){ return v===4?3:v===3?2:v||0; }
+
+// 每個象限「健康轉換分」的理論上限（每題最多3分，跟初診一致）
+const DIM_MAX_HEALTH = { diet:21, digest:24, sleep:27, skin:27, female:21 };
+
 function calcDimPct(flatData, dim) {
   const d = DIMS[dim];
-  const max = DIM_MAX[dim] || (d.fields.length * 4);
-  const raw = d.fields.reduce((s, f) => s + (flatData[f] || 0), 0);
-  // 健康度 = 1 - (症狀分數/滿分)，分數愈低健康度愈高
-  return Math.round((1 - raw / max) * 100);
+  const max = DIM_MAX_HEALTH[dim] || (d.fields.length * 3);
+  const raw = d.fields.reduce((s, f) => s + convertScoreHealth(flatData[f] || 0), 0);
+  return Math.round((raw / max) * 100);
+}
+
+// 壓力指數計算（跟初診報告完全相同）
+const PRESSURE_FIELDS = [
+  {fields:['飲｜渴望甜食*','飲｜渴望零食*'], avg:true},
+  {fields:['飲｜暴食/吃過多**']},
+  {fields:['飲｜微波食品/加工品**']},
+  {fields:['飲｜依賴咖啡因**']},
+  {fields:['消｜脹氣**']},
+  {fields:['消｜便秘**']},
+  {fields:['消｜水腫**']},
+  {fields:['睡｜心情低落*','睡｜覺得被工作消耗*'], avg:true},
+  {fields:['睡｜不耐煩/愛生氣**']},
+  {fields:['睡｜疲勞/睡醒還是累**']},
+];
+
+function calcPressure(flatData) {
+  let total = 0;
+  PRESSURE_FIELDS.forEach(p => {
+    if (p.avg) {
+      const vals = p.fields.map(f => convertScoreStress(flatData[f] || 0));
+      total += vals.reduce((s, v) => s + v, 0) / vals.length;
+    } else {
+      total += convertScoreStress(flatData[p.fields[0]] || 0);
+    }
+  });
+  return Math.round((total / 30) * 100);
+}
+
+// 壓力指數對比區塊（顯示在五邊形左側）
+function renderPressureCompare(baselineFlat, currentFlat) {
+  const bScore = calcPressure(baselineFlat);
+  const cScore = calcPressure(currentFlat);
+  const bLevel = bScore <= 33 ? '低度' : bScore <= 66 ? '中度' : '高度';
+  const cLevel = cScore <= 33 ? '低度' : cScore <= 66 ? '中度' : '高度';
+  const delta = cScore - bScore;
+  const deltaText = delta === 0 ? '持平' : `${delta > 0 ? '+' : ''}${delta}`;
+  // 壓力指數下降是好事（負值=改善）
+  const deltaColor = delta < 0 ? '#4a5a2a' : delta > 0 ? '#8a3030' : '#7a6e5f';
+  return `
+    <div style="text-align:center;border-right:1px dashed #e0d8c0;padding-right:16px">
+      <div style="font-size:11px;color:#a09080;margin-bottom:12px;letter-spacing:1px">壓力指數</div>
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;color:#a09080">初診</div>
+        <div style="font-size:26px;font-weight:700;color:#c8a84a;line-height:1.2">${bScore}</div>
+        <div style="font-size:11px;color:#7a6e5f">[${bLevel}]</div>
+      </div>
+      <div style="font-size:16px;color:#d0c8b0;margin:4px 0">↓</div>
+      <div style="margin-top:12px">
+        <div style="font-size:11px;color:#a09080">這次</div>
+        <div style="font-size:26px;font-weight:700;color:#4a5a2a;line-height:1.2">${cScore}</div>
+        <div style="font-size:11px;color:#7a6e5f">[${cLevel}]</div>
+      </div>
+      <div style="margin-top:14px;font-size:18px;font-weight:700;color:${deltaColor}">${deltaText}</div>
+      <div style="font-size:10px;color:#a09080;margin-top:2px">分數變化</div>
+    </div>`;
 }
 
 // ══ 五邊形雷達圖（雙層：初診淺色 + 這次深色） ══
@@ -928,10 +993,11 @@ function renderReport(data, stageKey) {
     sleepCard.style.display = 'none';
   }
 
-  // 五邊形雷達圖（FU3 限定）
+  // 五邊形雷達圖＋壓力指數對比（FU3 限定）
   const pentagonCard = document.getElementById('pentagonCard');
   if (cfg.showPentagon) {
     pentagonCard.style.display = 'block';
+    document.getElementById('pressureCompareSection').innerHTML = renderPressureCompare(baseline, currentSymptoms);
     drawPentagonComparison('pentagonCanvas', baseline, currentSymptoms);
   } else {
     pentagonCard.style.display = 'none';
